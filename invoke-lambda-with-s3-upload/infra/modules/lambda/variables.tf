@@ -32,3 +32,18 @@ variable "pvt_sub_ids" {
     type = list(string)
     description = "Private subnet IDs"
 }
+
+variable "rds_endpoint" {
+    description = "Connection endpoint for RDS instance"
+    type = string
+}
+
+variable "lambda_zip_path" {
+    type = string
+    description = "Path to the zipped lambda deployment package"
+}
+
+variable "s3_bucket_arn" {
+    type = string
+    description = "Invoking bucket's ARN"
+}

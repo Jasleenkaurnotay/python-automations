@@ -4,6 +4,11 @@ variable "aws_region" {
     default = "us-east-1"
 }
 
+variable "aws_profile" {
+    type = string
+    description = "AWS profile on local machine"
+}
+
 variable "project_name" {
     type = string
     description = "Name of the project"
@@ -50,4 +55,9 @@ variable "db_user" {
 variable "db_pwd" {
     type = string
     description = "RDS DB password"
+}
+
+variable "lambda_zip_path" {
+    type = string
+    description = "Path to the zipped lambda deployment package"
 }
