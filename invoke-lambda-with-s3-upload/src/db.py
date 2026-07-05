@@ -3,9 +3,34 @@ import traceback
 from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any, Iterator
+import boto3
+import json
 
 import psycopg2
 from psycopg2.extras import execute_values
+
+secretsmanager_client = boto3.client("secretsmanager")
+_cached_password = None
+
+def get_db_password():
+    global _cached_password
+    if _cached_password == None:
+        # Read Lambda environment variable DB_SECRET_ARN
+        sec_arn = os.environ['DB_SECRET_ARN']
+        # Fetch secret's value from secrets manager
+        response = secretsmanager_client.get_secret_value(
+            SecretId=sec_arn
+        )
+        print(response)
+        # Extract DB PWD from response of secretsmanager which is a dict of the form ${var.project_name}-db-pwd = {"password": "whatever-var.db_pwd-resolved-to"}, need to convert to json
+        sec_data = json.loads(response.get('SecretString'))
+        print(sec_data)
+
+        # extract the password alone from the extracted string
+        db_pwd = sec_data.get('password')
+        print(db_pwd)
+        _cached_password = db_pwd
+    return _cached_password
 
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS vendor_transactions (
@@ -49,7 +74,7 @@ ON CONFLICT (transaction_id) DO UPDATE SET
 
 def get_db_config() -> dict[str, Any]:
     print("[db] Loading database config from environment variables")
-    required = ["DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD"]
+    required = ["DB_HOST", "DB_NAME", "DB_USER", "DB_SECRET_ARN"]
     missing = [key for key in required if not os.environ.get(key)]
     if missing:
         print(f"[db] ERROR: Missing required env vars: {', '.join(missing)}")
@@ -60,7 +85,7 @@ def get_db_config() -> dict[str, Any]:
         "port": int(os.environ.get("DB_PORT", "5432")),
         "dbname": os.environ["DB_NAME"],
         "user": os.environ["DB_USER"],
-        "password": os.environ["DB_PASSWORD"],
+        "password": get_db_password(),
     }
     print(
         f"[db] Config loaded — host={config['host']}, "
