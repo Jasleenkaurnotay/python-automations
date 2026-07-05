@@ -47,3 +47,8 @@ variable "s3_bucket_arn" {
     type = string
     description = "Invoking bucket's ARN"
 }
+
+variable "db_secret_arn" {
+    type = string
+    description = "DB password secret"
+}

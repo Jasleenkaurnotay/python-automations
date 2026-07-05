@@ -23,7 +23,7 @@ resource "aws_db_instance" "db" {
     allocated_storage = 20
     db_name = var.db_name
     engine = "postgres"
-    engine_version = "17.4"
+    engine_version = "17"
     instance_class = "db.t3.micro"
     db_subnet_group_name = aws_db_subnet_group.db_sub_grp.name
     username = var.db_user

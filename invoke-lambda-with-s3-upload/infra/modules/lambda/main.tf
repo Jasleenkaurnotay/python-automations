@@ -78,6 +78,21 @@ resource "aws_iam_policy" "lambda_s3_ro_pol" {
   })
 }
 
+# Define IAM policy for lambda to fetch secret from secret manager
+resource "aws_iam_policy" "lambda_db_sec_pol" {
+  name = "lambda-db-secret-pol"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.db_secret_arn
+      }
+    ]
+  })
+}
+
 # Attach cloudwatch logging policy to lambda role
 resource "aws_iam_role_policy_attachment" "lambda_log_perms" {
     role = aws_iam_role.lambda_iam_role.name
@@ -96,6 +111,12 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc_perms" {
     policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
+# Attach IAM policy to allow lambda to get secret from secret manager
+resource "aws_iam_role_policy_attachment" "lambda_sec_mgr_perms" {
+  role = aws_iam_role.lambda_iam_role.name
+  policy_arn = aws_iam_policy.lambda_db_sec_pol.arn
+}
+
 # Create lambda function
 resource "aws_lambda_function" "lambda_func" {
     function_name = "${var.project_name}-lambda"
@@ -103,6 +124,8 @@ resource "aws_lambda_function" "lambda_func" {
     handler = "lambda_function.lambda_handler"
     runtime = "python3.13"
     filename = var.lambda_zip_path
+    # attach lambda layer
+    layers = [aws_lambda_layer_version.psycopg2_layer.arn]
     vpc_config {
       subnet_ids = var.pvt_sub_ids
       security_group_ids = [aws_security_group.lambda_sg.id]
@@ -118,7 +141,7 @@ resource "aws_lambda_function" "lambda_func" {
         DB_PORT = "5432"
         DB_NAME = var.db_name
         DB_USER = var.db_user
-        DB_PASSWORD = var.db_pwd
+        DB_SECRET_ARN = var.db_secret_arn
       }
     }
 
@@ -136,4 +159,12 @@ resource "aws_lambda_permission" "allow_s3_invoke" {
     function_name = aws_lambda_function.lambda_func.function_name
     principal = "s3.amazonaws.com"
     source_arn = var.s3_bucket_arn
+}
+
+# Install lambda layer for pycopg2 library
+resource "aws_lambda_layer_version" "psycopg2_layer" {
+  filename = "${path.module}/../../../scripts/lambda-layer/layer.zip"
+  layer_name = "psycopg2-layer"
+  compatible_runtimes = ["python3.13"]
+  source_code_hash = filebase64sha256("${path.module}/../../../scripts/lambda-layer/layer.zip")
 }
