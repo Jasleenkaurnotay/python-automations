@@ -2,9 +2,9 @@ import boto3
 import json
 import os
 from urllib.parse import unquote_plus
+import subprocess
 
 queue_url = "https://sqs.us-east-1.amazonaws.com/067270456427/clamav-scanner-queue"
-
 
 # Create SQS client
 sqs_client = boto3.client('sqs')
@@ -45,3 +45,14 @@ for msg in read_msg.get('Messages', []):
         local_file = os.path.basename(obj_key)
         local_file_path = os.path.join(current_folder, local_file)
         s3_client.download_file(bucket, obj_key, local_file_path)
+
+
+    # Scan downloaded files
+    scan_result = subprocess.run(
+        ["clamscan", local_file_path],
+        capture_output=True,
+        text=True
+    )
+    if result.scan_result == 1:
+        
+    print(result.returncode)
