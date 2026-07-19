@@ -1,0 +1,38 @@
+aws_profile  = "default"
+aws_region   = "us-east-1"
+project_name = "clamav"
+
+vpc_cidr     = "10.0.0.0/16"
+pvt_sub_cidr = ["10.0.1.0/24", "10.0.2.0/24"]
+pub_sub_cidr = ["10.0.101.0/24", "10.0.102.0/24"]
+
+alert_email = "you@example.com"
+
+# Replace <ACCOUNT_ID> and the ECR repo/tag with real values.
+# CLAMAV_DB_BUCKET_NAME / CLEAN_BUCKET_NAME / QUEUE_URL / SNS_TOPIC_ARN
+# must match the s3-sqs module's naming: "${project_name}-<suffix>"
+cont_def = [
+  {
+    name  = "scan"
+    image = "<ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/clamav-scanner:latest"
+    cmd   = ["python3", "main.py", "--action", "scan"]
+    env = {
+      DATABASE_DIRECTORY    = "/var/lib/clamav"
+      CLAMAV_DB_BUCKET_NAME = "clamav-db"
+      CLAMAV_DB_BUCKET_PATH = "clamav"
+      CLEAN_BUCKET_NAME     = "clamav-clean"
+      SNS_TOPIC_ARN         = "arn:aws:sns:us-east-1:<ACCOUNT_ID>:clamav-sns-topic"
+      QUEUE_URL             = "https://sqs.us-east-1.amazonaws.com/<ACCOUNT_ID>/clamav-queue"
+    }
+  },
+  {
+    name  = "update"
+    image = "<ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/clamav-scanner:latest"
+    cmd   = ["python3", "main.py", "--action", "update"]
+    env = {
+      DATABASE_DIRECTORY    = "/var/lib/clamav"
+      CLAMAV_DB_BUCKET_NAME = "clamav-db"
+      CLAMAV_DB_BUCKET_PATH = "clamav"
+    }
+  }
+]

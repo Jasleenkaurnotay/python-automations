@@ -8,5 +8,7 @@ __pycache__/
 invoke-lambda-with-s3-upload/infra/.terraform/
 invoke-lambda-with-s3-upload/infra/.terraform.lock.hcl
 invoke-lambda-with-s3-upload/infra/terraform.tfvars
-
+clamav-scanner/infra/.terraform
+clamav-scanner/infra/.terraform.lock.hcl
+clamav-scanner/infra/terraform.tfvars
 
