@@ -47,7 +47,7 @@ def get_db_free_storage(source_db_info, source_region):
     end_time = datetime.now(timezone.utc)
     cw_client = boto3.client('cloudwatch', region_name=source_region)
 
-    response = cw_client.get_metric_data(
+    free_storage_values = cw_client.get_metric_data(
         MetricDataQueries=[
             {
                 'Id' : 'storage_utilized',
@@ -70,5 +70,51 @@ def get_db_free_storage(source_db_info, source_region):
         StartTime=start_time,
         EndTime=end_time
     )
-    print(response)
-    return response['MetricDataResults'][0]['Values']
+    print(free_storage_values)
+    return free_storage_values['MetricDataResults'][0]['Values']       # Extracts only the 'values' section from the output. Values is a list type of item
+
+
+def evaluate_db_storage(free_storage_values, source_db_info):
+    if not free_storage_values:
+        raise ValueError("No Cloudwatch datapoints available - cannot evaluate storage")
+    
+    bytes_to_gb = 1024 ** 3
+    min_free_space = min(free_storage_values) / bytes_to_gb
+    used_gb = source_db_info['AllocatedStorage'] - min_free_space
+    if used_gb >= 20:
+        revised_db_size = used_gb * 1.2
+    else:
+        revised_db_size = 20 * 1.2
+    
+    logger.info(f"Revised DB storage size is {revised_db_size}")
+
+    return round(revised_db_size)
+
+def create_new_db(source_db_info, source_region):
+    rds_client = boto3.client('rds', source_region)
+
+    repsonse = rds_client.create_db_instance(
+        DBInstanceIdentifier = f"new_{source_db_info['DBInstanceIdentifier']}"
+        DBName = source_db_info['DBName']
+        AllocatedStorage = revised_db_size
+        DBInstanceClass = source_db_info['DBInstanceClass']
+        Engine = source_db_info['Engine']
+        EngineVersion = source_db_info['LatestRestorableTime']['EngineVersion']
+        MasterUsername = source_db_info['MasterUsername']
+        MasterUserPassword = get_db_link_details['password']
+        Port = source_db_info['Endpoint']['Port']
+        PubliclyAccessible = source_db_info['LatestRestorableTime']['PubliclyAccessible']
+        VpcSecurityGroupIds = source_db_info['InstanceCreateTime']['VpcSecurityGroups'][0]['VpcSecurityGroupId']
+        DBSubnetGroupName = source_db_info['DBSubnetGroup']['DBSubnetGroupName']
+    )
+
+
+
+
+
+
+if __name__ == "__main__":
+    db_info = sourcedbinfo("shrink-db", "us-east-1")
+    free_storage = get_db_free_storage(db_info, "us-east-1")
+    recommended_size = evaluate_db_storage(free_storage, db_info)
+    logger.info(f"Original AllocatedStorage: {db_info['AllocatedStorage']} GB, Recommended: {recommended_size} GB")
