@@ -10,8 +10,7 @@ logging.basicConfig(
 logger=logging.getLogger(__name__)
 
 source_region = "us-east-1"
-start_time = datetime.now(datetime.timezone.utc) - timedelta(days=2)
-end_time = datetime.now(datetime.timezone.utc)
+
 
 # Step 1: Query all details of existing, oversized rds instance
 def sourcedbinfo(source_db_name, source_region):
@@ -43,29 +42,33 @@ def get_db_link_details(source_db_info, password_env_var):
     }
 
 ## Query actual storage utilized over a range of time from cloudwatch
-cw_client = boto3.client('cloudwatch', region_name=source_region)
+def get_db_free_storage(source_db_info, source_region):
+    start_time = datetime.now(timezone.utc) - timedelta(days=2)
+    end_time = datetime.now(timezone.utc)
+    cw_client = boto3.client('cloudwatch', region_name=source_region)
 
-response = cw_client.get_metric_data(
-    MetricDataQueries=[
-        {
-            'Id' : 'storage_utilized',
-            'MetricStat': {
-                'Metric': {
-                    "Namespace": "AWS/RDS",
-                    "MetricName": "FreeStorageSpace",
-                    "Dimensions": [
-                        {
-                            "Name": "DBInstanceIdentifier", "Value": "shrink-db"
-                        },
-                    ],
+    response = cw_client.get_metric_data(
+        MetricDataQueries=[
+            {
+                'Id' : 'storage_utilized',
+                'MetricStat': {
+                    'Metric': {
+                        "Namespace": "AWS/RDS",
+                        "MetricName": "FreeStorageSpace",
+                        "Dimensions": [
+                            {
+                                "Name": "DBInstanceIdentifier", "Value": source_db_info['DBInstanceIdentifier']
+                            },
+                        ],
+                    },
+                    'Period': 300,
+                    'Stat': "Maximum"
                 },
-                'Period': 300,
-                'Stat': "Maximum"
-            },
-            "ReturnData": True
-        }
-    ],
-    StartTime=start_time,
-    EndTime=end_time
-)
-print(response)
+                "ReturnData": True
+            }
+        ],
+        StartTime=start_time,
+        EndTime=end_time
+    )
+    print(response)
+    return response['MetricDataResults'][0]['Values']
