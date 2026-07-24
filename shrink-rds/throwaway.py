@@ -90,23 +90,42 @@ def evaluate_db_storage(free_storage_values, source_db_info):
 
     return round(revised_db_size)
 
-def create_new_db(source_db_info, source_region):
-    rds_client = boto3.client('rds', source_region)
+def create_new_db(source_db_info, source_region, password_env_var, revised_db_size):
 
-    repsonse = rds_client.create_db_instance(
-        DBInstanceIdentifier = f"new_{source_db_info['DBInstanceIdentifier']}"
-        DBName = source_db_info['DBName']
-        AllocatedStorage = revised_db_size
-        DBInstanceClass = source_db_info['DBInstanceClass']
-        Engine = source_db_info['Engine']
-        EngineVersion = source_db_info['LatestRestorableTime']['EngineVersion']
-        MasterUsername = source_db_info['MasterUsername']
-        MasterUserPassword = get_db_link_details['password']
-        Port = source_db_info['Endpoint']['Port']
-        PubliclyAccessible = source_db_info['LatestRestorableTime']['PubliclyAccessible']
-        VpcSecurityGroupIds = source_db_info['InstanceCreateTime']['VpcSecurityGroups'][0]['VpcSecurityGroupId']
-        DBSubnetGroupName = source_db_info['DBSubnetGroup']['DBSubnetGroupName']
-    )
+    try:
+        logger.info("Creating DB password string")
+        db_link = get_db_link_details(source_db_info, password_env_var)
+
+        # Compute a list of security groups for the new DB
+        sg_ids = []
+        for sg in source_db_info['VpcSecurityGroups']:
+            sg_ids.append(sg['VpcSecurityGroupId'])
+
+        rds_client = boto3.client('rds', region_name=source_region)
+
+        logger.info("Creating resized database")
+
+        resized_db = rds_client.create_db_instance(
+            DBInstanceIdentifier = f"new_{source_db_info['DBInstanceIdentifier']}",
+            DBName = source_db_info['DBName'],
+            AllocatedStorage = revised_db_size,
+            DBInstanceClass = source_db_info['DBInstanceClass'],
+            Engine = source_db_info['Engine'],
+            EngineVersion = source_db_info['EngineVersion'],
+            MasterUsername = source_db_info['MasterUsername'],
+            MasterUserPassword = db_link['password'],
+            Port = source_db_info['Endpoint']['Port'],
+            PubliclyAccessible = source_db_info['PubliclyAccessible'],
+            VpcSecurityGroupIds = sg_ids,
+            DBSubnetGroupName = source_db_info['DBSubnetGroup']['DBSubnetGroupName']
+        )
+
+    except Exception as e:
+        logger.error(f"An error occurred while creating resized database: {str(e)}")
+        raise
+
+    logger.info(f"New database instance creation initiated: {resized_db['DBInstance']['DBInstanceIdentifier']}")
+    return resized_db['DBInstance']['DBInstanceIdentifier']
 
 
 
