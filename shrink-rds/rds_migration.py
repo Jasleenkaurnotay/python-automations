@@ -341,6 +341,40 @@ def allow_sgs(resized_db_dict, runner_sg_id, source_region):
     return allow_runner_rule
 
 
+def revoke_sgs(resized_db_dict, runner_sg_id, source_region):
+    # Initialize the EC2 client
+    ec2_client = boto3.client('ec2', region_name=source_region)
+
+    db_sg_id = resized_db_dict['VpcSecurityGroups'][0]['VpcSecurityGroupId']
+
+    try:
+        logger.info("Revoking runner access from DB security group")
+        revoke_runner_rule = ec2_client.revoke_security_group_ingress(
+            GroupId=db_sg_id,
+            IpPermissions=[
+                {
+                    'IpProtocol': 'tcp',
+                    'FromPort': 5432,
+                    'ToPort': 5432,
+                    'UserIdGroupPairs': [
+                        {
+                            'GroupId': runner_sg_id,
+                            'Description': 'Allow DB access from runner'
+                        },
+                    ],
+                },
+            ],
+        )
+    except ec2_client.exceptions.InvalidPermissionNotFound as e:
+        logger.info("Security group rule does not exist")
+        revoke_runner_rule = None
+    except Exception as e:
+        logger.error(f"Revoking security group rule encountered an error: {str(e)}")
+        raise
+
+    return revoke_runner_rule
+
+
 
 
 if __name__ == "__main__":
